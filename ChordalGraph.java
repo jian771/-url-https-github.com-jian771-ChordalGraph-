@@ -41,12 +41,16 @@ import java.util.Map;
  * vergroessert werden. Auf Online-Compilern mit Zeit-/Speicherlimits
  * (z.B. JDoodle) sollte daher zunaechst mit kleinerem maxN getestet werden.
  */
+
 public class ChordalGraphPolyTime {
 
-    static int W; // Schranke fuer die maximale Cliquengroesse (hier: unbeschraenkt = n)
+    static int W; // Schranke fuer die maximale Cliquengroesse (hier: unbeschraenkt = n)تذكر من الورقة الأكاديمية: الخوارزمية الأصلية بتحسب "ω-colorable chordal graphs" (يعني غرافات بحد أقصى لحجم الـ Clique = ω). إحنا مش محتاجين هالقيد (بدنا كل الغرافات chordal، بدون حد)، فـ W رح نحطها = n دايماً (يعني "بدون قيد فعلي" - أكبر Clique ممكنة أصلاً هي n).
+    
+    //هاي مصفوفة ثنائية الأبعاد  لتخزين nو k 
     static BigInteger[][] choose;
 
     // Memoisierung ueber HashMaps (sparse), Schluessel als gepackter long-Wert.
+    //تذكر من الورقة: عندنا 8 دوال مختلفة تماماً (g, g̃, ĝ, g̃1, g̃2, f, f̃, f̂) - كل وحدة بتحسب "شي مختلف" (شروط مختلفة عن الغراف)
     static Map<Long, BigInteger> memoG = new HashMap<>();
     static Map<Long, BigInteger> memoGTilde = new HashMap<>();
     static Map<Long, BigInteger> memoGHat = new HashMap<>();
@@ -57,8 +61,8 @@ public class ChordalGraphPolyTime {
     static Map<Long, BigInteger> memoFHat5 = new HashMap<>();
     static Map<Integer, BigInteger> memoConn = new HashMap<>();
 
-    static final long BASE = 64; // n <= 30, also reicht Basis 64 sicher zum Packen der Argumente
-
+    static final long BASE = 64; // n <= 30, also reicht Basis 64 sicher zum Packen der Argumente فينا نختار اي رقم تاني اكبر من ثلاثين 
+//هاد بالضبط زي تحويل الأرقام (a,b,c,d) لرقم وحيد "بنظام أساسه 64" (متل ما "234" بنظام أساسه 10):
     static long key4(int a, int b, int c, int d) {
         return ((a * BASE + b) * BASE + c) * BASE + d;
     }
@@ -72,37 +76,45 @@ public class ChordalGraphPolyTime {
 
         chooseInit(maxN);
 
-        System.out.println("n\t c(n)\t\t\t Laufzeit (ms)");
+        System.out.println("n\t c(n)\t\t\t Laufzeit (ms)");//اطبع "n"\t → اقفز لعمود جديد اطبع " c(n)"
+\t\t\t → اقفز 3 أعمدة (لأنو "c(n)" أقصر من الأرقام الكبيرة يلي رح تُطبع تحتها لاحقاً، فمنحتاج "مسافة أكبر" حتى يبقى العمود التالت مصفوف صح)
+اطبع " Laufzeit (ms)"
+    //بيحسب ويطبع كل قيم c(n)
         for (int n = 1; n <= maxN; n++) {
-            W = maxN; // unbeschraenkte Cliquengroesse; einmalig fest fuer den ganzen Lauf
-            long start = System.currentTimeMillis();
-            BigInteger result = chordalConn(n);
-            long end = System.currentTimeMillis();
+            W = maxN; // unbeschraenkte Cliquengroesse; einmalig fest fuer den ganzen Laufحكينا قبل شوي إنو W هي "حد أقصى لحجم الـ Clique
+            long start = System.currentTimeMillis();//هاي بتسجل "الوقت الحالي بالمللي ثانية
+            BigInteger result = chordalConn(n);//هاد "قلب" الحساب الفعلي! هون بننادي الدالة الرئيسية chordalConn(n) (يلي شرحناها سابقاً - بتستخدم كل الدوال الثمانية المتشابكة g, gTilde, إلخ) لحساب c(n) فعلياً لهاد القيمة المحددة من n.
+            long end = System.currentTimeMillis();//بعد" ما خلص الحساب - نسجل الوقت الحالي مرة تانية
             System.out.println(n + "\t" + result + "\t" + (end - start));
         }
     }
-
+//تمام، هاد الدالة يلي بتحسب كل (Binomial Coefficients) مسبقاً - يعني قبل ما نبلش أي حساب فعلي بالخوارزمية. هاي طريقة ذكية ومعروفة كتير ببرمجة الديناميكية (Dynamic Programming) اسمها "مثلث باسكال" (Pascal's Triangle).
     static void chooseInit(int n) {
-        choose = new BigInteger[n + 1][n + 1];
-        for (int m = 0; m <= n; m++) {
+        choose = new BigInteger[n + 1][n + 1];//. كل خانة choose[m][k] رح تخزن قيمة
+        for (int m = 0; m <= n; m++) {//بتمشي على كل قيمة ممكنة لـ m (من 0 لـ n) - يعني "الصف" الحالي بمثلث باسكال
             choose[m][0] = BigInteger.ONE;
-            for (int k = 1; k <= m; k++) {
+            for (int k = 1; k <= m; k++) {//العمود" الحالي بنفس الصف.
                 BigInteger a = choose[m - 1][k];
                 BigInteger b = choose[m - 1][k - 1];
                 choose[m][k] = (a == null ? BigInteger.ZERO : a).add(b);
+                //، choose[m-1][k] ممكن يكون خارج الحدود المنطقية (متلاً choose[-1][k] مش موجودة أصلاً بالمصفوفة!) - أو تكون قيمة "لسا ما انحسبت" (default null بجافا لأي عنصر BigInteger لسا ما انعين لو صراحة).
             }
         }
     }
 
     static BigInteger choose(int n, int k) {
-        if (n < 0 || k < 0 || k > n) return BigInteger.ZERO;
+        if (n < 0 || k < 0 || k > n) return BigInteger.ZERO;//حالات "غير منطقية
         return choose[n][k];
     }
 
     /** c(k): Anzahl zusammenhaengender beschrifteter chordaler Graphen auf k Knoten. */
     static BigInteger chordalConn(int k) {
-        if (k == 0) return BigInteger.ZERO;
+        if (k == 0) return BigInteger.ZERO;//: c(0) = 0 - مافي "غراف متصل" بصفر رؤوس
         BigInteger cached = memoConn.get(k);
+    //t = "وقت التبخر" (evaporation time) - بكم "خطوة" بيتبخر كل الغراف (تذكر مفهوم evaporation sequence من الورقة - حذف كل الرؤوس simplicial دفعة وحدة، وتكرار)
+l = حجم آخر مجموعة رؤوس simplicial تتبخر (يعني LG(∅) بمصطلحات الورقة	
+ ) = عدد الطرق لاختيار مين بالضبط هني الـ l رأس يلي رح يكونوا "آخر مجموعة تتبخر"
+f(t, 0, l, k-l) = عدد الطرق لبناء غراف بالتفاصيل المحددة (evaporation time=t، آخر مجموعة حجمها l، والباقي k-l رأس)
         if (cached != null) return cached;
         BigInteger ans = BigInteger.ZERO;
         for (int t = 1; t <= k; t++) {
@@ -114,15 +126,17 @@ public class ChordalGraphPolyTime {
         return ans;
     }
 
-    // g(t,x,z,k): chordale Graphen, die bis Zeit t "verdunsten" (evaporate), x>=1 erforderlich
     static BigInteger g(int t, int x, int z, int k) {
         long key = key4(t, x, z, k);
         BigInteger cached = memoG.get(key);
         if (cached != null) return cached;
         BigInteger ans;
+        //t=0 يعني "بدون أي وقت للتبخر إطلاقاً" - يعني الغراف لازم يكون فاضي تماماً (بلا أي رأس زيادة عن X) من البداية، لأنو مافي وقت (t=0) نسمح لأي رأس يتبخر بيه.
         if (t == 0) {
             ans = (k == 0) ? BigInteger.ONE : BigInteger.ZERO;
-        } else {
+        } //kk = عدد الرؤوس يلي بتتبخر بالضبط عند الوقت t (يعني "بآخر لحظة مسموحة")
+g(t−1,x,z,k−kk) = عدد الطرق لبناء الباقي (k-kk رأس)، يلي بيتبخر بزمن ≤ t-1 (يعني أبكر من t)
+        else {
             ans = BigInteger.ZERO;
             for (int kk = 0; kk <= k; kk++) {
                 ans = ans.add(choose(k, kk).multiply(gTilde(t, x, z, kk)).multiply(g(t - 1, x, z, k - kk)));
